@@ -356,6 +356,8 @@ def all_reduce_mean(x):
         return x
 
 def load_state_dict(model, state_dict, prefix='', ignore_missing="relative_position_index"):
+    #delete later
+    print("\nBeginning of load_state_dict\n")
     missing_keys = []
     unexpected_keys = []
     error_msgs = []
@@ -364,12 +366,21 @@ def load_state_dict(model, state_dict, prefix='', ignore_missing="relative_posit
     state_dict = state_dict.copy()
     if metadata is not None:
         state_dict._metadata = metadata
+    # added to include weights from a parallel model weights file into a single machine model weights file
+    working_state_dict = {}
+    for key in state_dict:
+        # working_state_dict[key.split("model.")[-1]] = state_dict[key]
+        working_state_dict[key.split("encoder.")[-1]] = state_dict[key]
+
 
     def load(module, prefix=''):
+        #delete later
+        print("\nIn load function of load_state_dict!\n")
+        
         local_metadata = {} if metadata is None else metadata.get(
             prefix[:-1], {})
         module._load_from_state_dict(
-            state_dict, prefix, local_metadata, True, missing_keys, unexpected_keys, error_msgs)
+            working_state_dict, prefix, local_metadata, True, missing_keys, unexpected_keys, error_msgs)
         for name, child in module._modules.items():
             if child is not None:
                 load(child, prefix + name + '.')
@@ -430,7 +441,18 @@ class NativeScalerWithGradNormCount:
         return self._scaler.state_dict()
 
     def load_state_dict(self, state_dict):
-        self._scaler.load_state_dict(state_dict)
+        # delete later
+        print("\nIn load_state_dict of Scaler\n")
+
+        # same as modification in load_state_dict
+        working_state_dict = {}
+        for key in state_dict:
+          # working_state_dict[key.split("model.")[-1]] = state_dict[key]
+          working_state_dict[key.split("encoder.")[-1]] = state_dict[key]
+
+        self._scaler.load_state_dict(working_state_dict)
+        #delete later
+        print("\nAfter load_state_dict of Scaler\n")
 
 
 def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
@@ -491,22 +513,58 @@ def auto_load_model(args, model, model_without_ddp, optimizer, loss_scaler, mode
                 args.resume, map_location='cpu', check_hash=True)
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
-
-        model_without_ddp.load_state_dict(checkpoint['model'])
+        # added to include weights from a parallel model weights file into a single machine model weights file
+        # deals with nested keys
+        working_state_dict = {}
+        for entry in checkpoint:
+            #delete later
+            print("checkpoint entry:", entry)
+            
+            if entry == 'model':
+              working_state_dict[entry] = checkpoint[entry].copy()
+              for key in checkpoint[entry]:
+                  #delete later
+                  print("checkpoint key:", key)
+                  if ('ln.' in key):
+                      # string concatenation
+                      key_splice = key.split('ln.')
+                      if len(key_splice) != 2:
+                          print("\nError with string manipulation of keys with ln. !!!")
+                          print(key_splice[:]+'\n')
+                      key_fix = key_splice[0] + key_splice[1]
+                      working_state_dict[entry][key_fix.split("encoder.")[-1]] = checkpoint[entry][key]
+                  else:
+                      working_state_dict[entry][key.split("encoder.")[-1]] = checkpoint[entry][key]
+            else:
+              working_state_dict[entry] = checkpoint[entry]
+        
+        #delete later
+        print("\nCalling model_without_ddp.load_state_dict()\n")
+        model_without_ddp.load_state_dict(working_state_dict['model'])
+        #delete later
+        print("\nauto_load_model(); loaded model w/o ddp\n")
         print("Resume checkpoint %s" % args.resume)
-        if 'optimizer' in checkpoint and 'epoch' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            if not isinstance(checkpoint['epoch'], str): # does not support resuming with 'best', 'best-ema'
-                args.start_epoch = checkpoint['epoch'] + 1
+        if 'optimizer' in working_state_dict and 'epoch' in working_state_dict:
+            optimizer.load_state_dict(working_state_dict['optimizer'])
+            #delete later
+            print("\nauto_load_model(); loaded optimizer\n")
+            if not isinstance(working_state_dict['epoch'], str): # does not support resuming with 'best', 'best-ema'
+                args.start_epoch = working_state_dict['epoch'] + 1
             else:
                 assert args.eval, 'Does not support resuming with checkpoint-best'
             if hasattr(args, 'model_ema') and args.model_ema:
-                if 'model_ema' in checkpoint.keys():
-                    model_ema.ema.load_state_dict(checkpoint['model_ema'])
+                if 'model_ema' in working_state_dict.keys():
+                    model_ema.ema.load_state_dict(working_state_dict['model_ema'])
+                    #delete later
+                    print("\nauto_load_model(); loaded model_ema\n")
                 else:
-                    model_ema.ema.load_state_dict(checkpoint['model'])
-            if 'scaler' in checkpoint:
-                loss_scaler.load_state_dict(checkpoint['scaler'])
+                    model_ema.ema.load_state_dict(working_state_dict['model'])
+                    #delete later
+                    print("\nauto_load_model(); loaded model not ema\n")
+            if 'scaler' in working_state_dict:
+                loss_scaler.load_state_dict(working_state_dict['scaler'])
+                #delete later
+                print("\nauto_load_model(); loaded scaler\n")
             print("With optim & sched!")
 
 def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epochs=0,
