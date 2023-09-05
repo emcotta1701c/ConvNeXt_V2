@@ -259,6 +259,14 @@ def main(args):
 
         print("Load pre-trained checkpoint from: %s" % args.finetune)
         checkpoint_model = checkpoint['model']
+        #delete later
+        # debugging print statement to check if state_dict remapping is successful
+        # from autoencoder weights to backbone weights
+
+        #delete later
+        print("\nState_dict before remapping:")
+        print(checkpoint_model)
+
         state_dict = model.state_dict()
         for k in ['head.weight', 'head.bias']:
             if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
@@ -275,6 +283,11 @@ def main(args):
                 del checkpoint_model[k]
         
         checkpoint_model = remap_checkpoint_keys(checkpoint_model)
+        #delete later
+        # debugging statement after remapping
+        print("\nState_dict after remapping:")
+        print(checkpoint_model)
+
         utils.load_state_dict(model, checkpoint_model, prefix=args.model_prefix)
         
         # manually initialize fc layer
