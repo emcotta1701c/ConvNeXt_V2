@@ -355,7 +355,7 @@ def all_reduce_mean(x):
     else:
         return x
 
-def load_state_dict(model, state_dict, prefix='', ignore_missing="relative_position_index"):
+def load_state_dict(model, state_dict, prefix='', ignore_missing="relative_position_index", autoencoder=True):
     missing_keys = []
     unexpected_keys = []
     error_msgs = []
@@ -369,7 +369,7 @@ def load_state_dict(model, state_dict, prefix='', ignore_missing="relative_posit
         local_metadata = {} if metadata is None else metadata.get(
             prefix[:-1], {})
         module._load_from_state_dict(
-            state_dict, prefix, local_metadata, True, missing_keys, unexpected_keys, error_msgs)
+            state_dict, prefix, local_metadata, True, strict=!autoencoder, missing_keys, unexpected_keys, error_msgs)
         for name, child in module._modules.items():
             if child is not None:
                 load(child, prefix + name + '.')
@@ -471,7 +471,9 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, mo
         if os.path.exists(old_ckpt):
             os.remove(old_ckpt)
 
-def auto_load_model(args, model, model_without_ddp, optimizer, loss_scaler, model_ema=None):
+# new parameter: autoencoder = true/false
+# autoencoder=True: want to load autoencoder; autoencoder=False: want to load convnext
+def auto_load_model(args, model, model_without_ddp, optimizer, loss_scaler, model_ema=None, autoencoder=True):
     output_dir = Path(args.output_dir)
     if args.auto_resume and len(args.resume) == 0:
         import glob
@@ -492,7 +494,7 @@ def auto_load_model(args, model, model_without_ddp, optimizer, loss_scaler, mode
         else:
             checkpoint = torch.load(args.resume, map_location='cpu')
 
-        model_without_ddp.load_state_dict(checkpoint['model'])
+        model_without_ddp.load_state_dict(checkpoint['model'], autoencoder=autoencoder)
         print("Resume checkpoint %s" % args.resume)
         if 'optimizer' in checkpoint and 'epoch' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer'])

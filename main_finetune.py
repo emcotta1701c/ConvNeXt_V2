@@ -348,7 +348,7 @@ def main(args):
 
     utils.auto_load_model(
         args=args, model=model, model_without_ddp=model_without_ddp,
-        optimizer=optimizer, loss_scaler=loss_scaler, model_ema=model_ema)
+        optimizer=optimizer, loss_scaler=loss_scaler, model_ema=model_ema, autoencoder=False)
 
     if args.eval:
         print(f"Eval only mode")
