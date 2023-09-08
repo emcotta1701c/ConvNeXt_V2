@@ -51,7 +51,10 @@ class FCMAE(nn.Module):
 
         # encoder
         self.encoder = ConvNeXtV2(
-            in_chans=in_chans, depths=depths, dims=dims, D=2)
+            in_chans=in_chans, depths=depths, dims=dims)
+        # self.encoder = SparseConvNeXtV2(
+        #   in_chans=in_chans, depths=depths, dims=dims, D=2) 
+        )
         # decoder
         self.proj = nn.Conv2d(
             in_channels=dims[-1], 
